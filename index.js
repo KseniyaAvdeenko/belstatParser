@@ -6,24 +6,13 @@ const dataFormatter = require('./DataFormatter')
 
 
 function getData(file, excel) {
-    const keys = dataFormatter.getFileKeys();
-    const excludeValues = ['Всего', 'Всего / Total'];
-
-    let fileJson = {};
-    fileJson.name = dataFormatter.getAverageSalaryFileName(file)
-    fileJson.speciality = []
+    let fileJson = {name: dataFormatter.getAverageSalaryFileName(file), speciality: []};
     excel.slice(4,).map((elem) => {
         if(dataFormatter.getDataFromElement(elem, 0)) fileJson.speciality.push(dataFormatter.getDataFromElement(elem, 0))
         if(dataFormatter.getDataFromElement(elem, 1))fileJson.speciality.push(dataFormatter.getDataFromElement(elem, 1))
-        //console.log(elem)
     })
-
-    //console.log(fileJson)
     return fileJson
 }
-
-
-
 
 function getFiles() {
     const dir = fs.readdirSync(path.join(__dirname, 'downloads'))
