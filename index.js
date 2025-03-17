@@ -5,25 +5,33 @@ const excelReader = require('./ExcelReader')
 const dataFormatter = require('./DataFormatter')
 
 
-function getData(file, excel) {
-    let fileJson = {name: dataFormatter.getAverageSalaryFileName(file), speciality: []};
-    excel.slice(4,).map((elem) => {
-        if(dataFormatter.getDataFromElement(elem, 0)) fileJson.speciality.push(dataFormatter.getDataFromElement(elem, 0))
-        if(dataFormatter.getDataFromElement(elem, 1))fileJson.speciality.push(dataFormatter.getDataFromElement(elem, 1))
-    })
-    return fileJson
+async function getAveragePension(){
+    const pensionInfo = await parserBelStat.parsePension()
+    const data = dataFormatter.getAveragePensionByMonths(pensionInfo.slice(0, 9))
+    // fs.writeFile(
+    //             path.join(__dirname, 'json',
+    //                 `average_pension.json`),
+    //             JSON.stringify(data), () => {
+    //             })
+    return data
 }
 
 function getFiles() {
     const dir = fs.readdirSync(path.join(__dirname, 'downloads'))
     if (dir.length) {
-        dir.map((file, i) => {
+        dir.map(file => {
             const excel = excelReader.readExcel(file)
-            const data = getData(file, excel)
-            //fs.writeFile(path.join(__dirname, 'json', file.split('.')[0] + '.json'), JSON.stringify(data), ()=>{})
+            const data = dataFormatter.getDataFromExcel(file, excel)
+            // fs.writeFile(
+            //     path.join(__dirname, 'json',
+            //         `average_salary_${dataFormatter.getFullDate(file).toISOString().slice(0, 7)}.json`),
+            //     JSON.stringify(data), () => {
+            //     })
         })
     }
 }
 
-getFiles()
+getAveragePension()
+
 //parserBelStat.downloadAll().then(data=>data)
+//getFiles()

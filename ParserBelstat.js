@@ -5,10 +5,12 @@ const https = require("https");
 const axios = require("axios");
 
 const mainUrl = 'https://www.belstat.gov.by/ofitsialnaya-statistika/realny-sector-ekonomiki/stoimost-rabochey-sily/operativnye-dannye/o-nachislennoy-sredney-zarabotnoy-plate-rabotnikov/'
+const pensionInfoUrl = 'https://www.mintrud.gov.by/ru/informacia-o-srednih-razmerah-pensij-ru'
 
 class ParseBelStat {
-    constructor(mainLink) {
+    constructor(mainLink, pensionUrl) {
         this.mainLink = mainLink
+        this.pensionUrl = pensionUrl
     }
 
     async getMonthsLinks() {
@@ -26,10 +28,6 @@ class ParseBelStat {
             console.log('Не удалось спарсить ссылки на страницы месяцев', e.message)
             return e.message
         }
-    }
-
-    async getLatestMonthLink(array) {
-        if (array.length) return array[0]
     }
 
     async downloadExcelLink(link) {
@@ -87,22 +85,32 @@ class ParseBelStat {
     }
 
     async downloadAll() {
-        let files = [];
         const monthsLinks = await this.getMonthsLinks();
         for (let i = 0; i < monthsLinks.length; i++) {
             const link = await this.getDownloadExcelLink(monthsLinks[i])
-            const file = await this.downloadExcelLink(link);
-            files.push(file)
+            await this.downloadExcelLink(link);
         }
-        return files
     }
 
-    async downloadLatestMonth() {
-        const monthsLinks = await this.getMonthsLinks();
-        const latestMonth = await this.getLatestMonthLink(monthsLinks)
-        const link = await this.getDownloadExcelLink(latestMonth)
-        await this.downloadLink(link)
+    async parsePension() {
+        try {
+            const browser = await puppeteer.launch();
+            const page = await browser.newPage()
+            await page.goto(this.pensionUrl, {waitUntil: 'domcontentloaded',})
+            await page.waitForSelector('tbody')
+            const data = await page.$$eval('tbody > tr',
+                rows => rows.map(row =>
+                    [{text: row.textContent, index: row.rowIndex}]
+                )
+            )
+            await browser.close()
+            return data
+        } catch (e) {
+            console.log('Не удалось спарсить инфо о средней начисленной пенсии по возрасту', e.message)
+            return e.message
+        }
     }
+
 }
 
-module.exports = new ParseBelStat(mainUrl)
+module.exports = new ParseBelStat(mainUrl, pensionInfoUrl)
