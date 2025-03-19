@@ -1,3 +1,5 @@
 node_modules
 downloads/
 json/
+.env
+storage.js

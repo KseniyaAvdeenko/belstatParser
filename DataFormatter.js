@@ -1,7 +1,6 @@
 class DataFormatter {
     getAverageSalary(string) {
-        //return parseFloat(string.replace(',', '.').split('').map((el, i) => string.charCodeAt(i) !== 160 ? el : '').join(''))
-        return string.split('').map((el, i) => string.charCodeAt(i) !== 160 ? el : ' ').join('')
+        return parseInt(string.replace(',', '').split('').map((el, i) => string.charCodeAt(i) !== 160 ? el : '').join(''))
     }
 
     getFullDate(file) {
@@ -70,12 +69,13 @@ class DataFormatter {
         if (element.hasOwnProperty(keys[keyIndex]) && !excludeValues.includes(key)) {
             const valueKey = element.hasOwnProperty(keys[2]) ? keys[2] : keys[3]
             const value = typeof element[valueKey] === 'string'
-                ? this.getAverageSalary(element[valueKey]) + ' BYN'
-                : element[valueKey] + ' BYN'
+                ? this.getAverageSalary(element[valueKey])
+                : element[valueKey]
 
             elementData = {
                 speciality: this.getSpeciality(key),
-                averageSalary: value
+                amount: value,
+                currency: 'BYN'
             }
         }
         return Object.keys(elementData).length ? elementData : null
@@ -96,22 +96,27 @@ class DataFormatter {
     }
 
     getAveragePensionByMonths(dataArray) {
-        let averagePension = {name: 'Средний размер пенсии по возрасту (для неработающего пенсионера)', years: []};
+        let averagePension = {name: 'Средний размер пенсии по возрасту (для неработающего пенсионера)', data: []};
         const currentDate = new Date(Date.now())
         const months = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"];
-        const parsedData = dataArray.slice(3).map((yearData) => {
-            const values = yearData[0].text.trim().split(/\s+/);
-            const year = parseInt(values[0], 10);
-
-            const monthsData = months.map((month, index) => ({
-                month: this.getMonthFullName(index),
-                sum: values[index + 1] ? values[index + 1].replace(',', '.') + ' BYN' : null
-            })).filter(m => m.sum);
-
-            return {year, months: monthsData};
-        }).filter(y => y.year >= currentDate.getFullYear() - 1);
-
-        averagePension.years = parsedData;
+        let data = []
+        if (dataArray.length)
+            dataArray.map(yearData => {
+                const values = yearData.text.trim().split(/\s+/);
+                const year = parseInt(values[0])
+                months.map((month, index) =>
+                    averagePension.data.push({
+                        year: year,
+                        month: index,
+                        amount: values[index + 1] ? parseInt(values[index + 1].replace(',', '')) : null,
+                        currency: 'BYN'
+                    })
+                )
+            })
+        averagePension.data = averagePension.data.filter(y => y.year >= currentDate.getFullYear() - 1)
+            .filter(el => el.amount)
+            .filter(el => el.year === currentDate.getFullYear() - 1 && el.month > currentDate.getMonth()
+                || el.year === currentDate.getFullYear());
         return averagePension
     }
 }

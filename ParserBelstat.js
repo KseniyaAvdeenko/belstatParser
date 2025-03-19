@@ -3,6 +3,9 @@ const path = require("path");
 const fs = require("fs");
 const https = require("https");
 const axios = require("axios");
+const storage = require('./storage')
+const {S3Client, PutObjectCommand} = require("@aws-sdk/client-s3");
+require('dotenv').config()
 
 const mainUrl = 'https://www.belstat.gov.by/ofitsialnaya-statistika/realny-sector-ekonomiki/stoimost-rabochey-sily/operativnye-dannye/o-nachislennoy-sredney-zarabotnoy-plate-rabotnikov/'
 const pensionInfoUrl = 'https://www.mintrud.gov.by/ru/informacia-o-srednih-razmerah-pensij-ru'
@@ -30,18 +33,10 @@ class ParseBelStat {
         }
     }
 
-    async downloadExcelLink(link) {
-        if (!link) return null
+    async downloadToProjectFolder(fileName, link, agent) {
         const downloadPath = path.resolve(__dirname, 'downloads');
         if (!fs.existsSync(downloadPath)) fs.mkdirSync(downloadPath, {recursive: true});
-
-        const fileName = link.split('/')[link.split('/').length - 1];
         const filePath = downloadPath + '\\' + fileName
-
-        const agent = new https.Agent({
-            rejectUnauthorized: false
-        });
-
         axios({
             method: 'GET',
             url: link,
@@ -59,8 +54,24 @@ class ParseBelStat {
             .catch(error => {
                 console.error('Ошибка загрузки файла:', error.message);
             });
+    }
+
+    async downloadExcelLink(fileName, link) {
+        if (!link) return null
+
+        const agent = new https.Agent({
+            rejectUnauthorized: false
+        });
+
+        //------для загрузки в папку проекта
+        await this.downloadToProjectFolder(fileName, link, agent)
 
         return fileName
+    }
+
+    getFileName(link) {
+        if (!link) return null
+        return link.split('/')[link.split('/').length - 1]
     }
 
     async getDownloadExcelLink(link) {
@@ -88,8 +99,24 @@ class ParseBelStat {
         const monthsLinks = await this.getMonthsLinks();
         for (let i = 0; i < monthsLinks.length; i++) {
             const link = await this.getDownloadExcelLink(monthsLinks[i])
-            await this.downloadExcelLink(link);
+            const fileName = this.getFileName(link)
+            if (!fs.existsSync(path.join(__dirname, 'downloads', fileName)))
+                await this.downloadExcelLink(fileName, link);
         }
+    }
+
+    async getLatestMonth() {
+        const monthsLinks = await this.getMonthsLinks()
+        return monthsLinks.length ? monthsLinks[0] : null
+    }
+
+    async downloadLatest() {
+        const latestMonth = await this.getLatestMonth()
+        if (!latestMonth) throw new Error('Нет ссылки')
+        const link = await this.getDownloadExcelLink(latestMonth)
+        const fileName = this.getFileName(link)
+        if (!fs.existsSync(path.join(__dirname, 'downloads', fileName)))
+            await this.downloadExcelLink(fileName, link);
     }
 
     async parsePension() {
@@ -100,17 +127,17 @@ class ParseBelStat {
             await page.waitForSelector('tbody')
             const data = await page.$$eval('tbody > tr',
                 rows => rows.map(row =>
-                    [{text: row.textContent, index: row.rowIndex}]
+                    ({text: row.textContent, index: row.rowIndex})
                 )
             )
             await browser.close()
             return data
         } catch (e) {
             console.log('Не удалось спарсить инфо о средней начисленной пенсии по возрасту', e.message)
-            return e.message
+            return null
         }
     }
-
 }
 
 module.exports = new ParseBelStat(mainUrl, pensionInfoUrl)
+

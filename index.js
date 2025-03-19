@@ -1,37 +1,51 @@
-const fs = require('fs');
-const path = require('path');
-const parserBelStat = require('./ParserBelstat');
-const excelReader = require('./ExcelReader')
-const dataFormatter = require('./DataFormatter')
+const parserBelStat = require("./ParserBelstat");
+const dataFormatter = require("./DataFormatter");
+const {getFiles} = require("./getFiles");
+const {CronJob} = require('cron');
+const fs = require('fs')
+const path = require("path");
 
-
-async function getAveragePension(){
+async function getAveragePensionAll() {
     const pensionInfo = await parserBelStat.parsePension()
-    const data = dataFormatter.getAveragePensionByMonths(pensionInfo.slice(0, 9))
-    // fs.writeFile(
-    //             path.join(__dirname, 'json',
-    //                 `average_pension.json`),
-    //             JSON.stringify(data), () => {
-    //             })
-    return data
-}
-
-function getFiles() {
-    const dir = fs.readdirSync(path.join(__dirname, 'downloads'))
-    if (dir.length) {
-        dir.map(file => {
-            const excel = excelReader.readExcel(file)
-            const data = dataFormatter.getDataFromExcel(file, excel)
-            // fs.writeFile(
-            //     path.join(__dirname, 'json',
-            //         `average_salary_${dataFormatter.getFullDate(file).toISOString().slice(0, 7)}.json`),
-            //     JSON.stringify(data), () => {
-            //     })
-        })
+    if (pensionInfo && pensionInfo.length) {
+        const data = dataFormatter.getAveragePensionByMonths(pensionInfo.slice(3, 9))
+        // fs.writeFile(
+        //             path.join(__dirname, 'json',
+        //                 `average_pension.json`),
+        //             JSON.stringify(data), () => {
+        //             })
+        return data
     }
 }
 
-getAveragePension()
+async function getAveragePensionLatest() {
+    const pensionInfo = await parserBelStat.parsePension()
+    const currentDate = new Date(Date.now())
+    if (pensionInfo && pensionInfo.length) {
+        const data = dataFormatter.getAveragePensionByMonths(pensionInfo.slice(3, 9))
+        return {name: data.name, data: data.data.filter(el=> el.year === currentDate.getFullYear() && el.month === currentDate.getMonth())}
+    }
+}
+async function getAverageDataAll() {
+    await getAveragePensionAll()
+    await parserBelStat.downloadAll();
+    getFiles()
+}
 
-//parserBelStat.downloadAll().then(data=>data)
-//getFiles()
+async function getAverageDataLatest() {
+
+    await parserBelStat.downloadLatest();
+    getFiles()
+}
+
+//задача сработает один раз
+setTimeout(getAverageDataAll, 10 * 1000);
+setTimeout(getAveragePensionAll, 10 * 1000);
+
+const getAverageDataMonthlyJob = new CronJob('0 10 1 * *', async () => {
+    await getAverageDataLatest()
+    await getAveragePensionLatest()
+})
+
+getAverageDataMonthlyJob.start();
+
