@@ -3,46 +3,33 @@ class DataFormatter {
         return parseInt(string.replace(',', '').split('').map((el, i) => string.charCodeAt(i) !== 160 ? el : '').join(''))
     }
 
-    getFullDate(file) {
-        const date = file.split('.')[0].split('-')[1];
-        return new Date('20' + date.slice(0, 2) + "-" + date.slice(2,))
-    }
-
     getMonthFullName(monthNum) {
         switch (monthNum) {
-            case 0:
-                return 'Январь'
             case 1:
-                return 'Февраль'
+                return 'Январь'
             case 2:
-                return 'Март'
+                return 'Февраль'
             case 3:
-                return 'Апрель'
+                return 'Март'
             case 4:
-                return 'Май'
+                return 'Апрель'
             case 5:
-                return 'Июнь'
+                return 'Май'
             case 6:
-                return 'Июль'
+                return 'Июнь'
             case 7:
-                return 'Август'
+                return 'Июль'
             case 8:
-                return 'Сентябрь'
+                return 'Август'
             case 9:
-                return 'Октябрь'
+                return 'Сентябрь'
             case 10:
-                return 'Ноябрь'
+                return 'Октябрь'
             case 11:
+                return 'Ноябрь'
+            case 12:
                 return 'Декабрь'
         }
-    }
-
-    getAverageSalaryFileName(file) {
-        const fullDate = this.getFullDate(file)
-        const year = fullDate.getFullYear()
-        const month = this.getMonthFullName(fullDate.getMonth())
-        const heading = 'Номинальная начисленная средняя заработная плата Республики Беларусь по видам экономической деятельности за'
-        return `${heading} ${month} ${year}`
     }
 
     getFileKeys() {
@@ -55,9 +42,16 @@ class DataFormatter {
     }
 
     getSpeciality(speciality) {
-        if (speciality.includes('/')) return speciality.split('/')[0].includes('\r\n')
-            ? speciality.split('/')[0].replaceAll('\r\n', ' ')
-            : speciality.split('/')[0]
+        if (speciality.includes('/')) {
+            return speciality.split('/')[0].includes('\r\n')
+                ? speciality.split('/')[0].replaceAll('\r\n', ' ')
+                : speciality.split('/')[0]
+        }else {
+            return speciality.includes('\r\n')
+                ? speciality.replaceAll('\r\n', ' ')
+                : speciality
+        }
+
     }
 
     getDataFromElement(element, keyIndex) {
@@ -81,11 +75,13 @@ class DataFormatter {
         return Object.keys(elementData).length ? elementData : null
     }
 
-    getDataFromExcel(file, excel) {
+    getDataFromExcel(fileName, excel) {
+        if(!fileName && !excel) return null
         let fileJson = {
-            name: this.getAverageSalaryFileName(file),
-            year: this.getFullDate(file).getFullYear(),
-            month: this.getFullDate(file).getMonth() + 1,
+            name: fileName.name,
+            year: fileName.year,
+            month: fileName.month,
+            monthName: fileName.monthName,
             speciality: []
         };
         excel.slice(4,).map((elem) => {
@@ -99,7 +95,6 @@ class DataFormatter {
         let averagePension = {name: 'Средний размер пенсии по возрасту (для неработающего пенсионера)', data: []};
         const currentDate = new Date(Date.now())
         const months = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"];
-        let data = []
         if (dataArray.length)
             dataArray.map(yearData => {
                 const values = yearData.text.trim().split(/\s+/);
