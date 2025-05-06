@@ -40,6 +40,28 @@ class ParserDataFormatter {
         }
     }
 
+    getSpecialities() {
+        return ["Сельское, лесное и рыбное хозяйство",
+            'Промышленность',
+            'Строительство',
+            'Оптовая и розничная торговля; ремонт автомобилей и мотоциклов',
+            "Транспортная деятельность, складирование, почтовая и курьерская деятельность",
+            'Услуги по временному проживанию и питанию',
+            'Услуги по временному проживанию и  питанию',
+            'Информация и связь',
+            'Финансовая и страховая деятельность',
+            'Операции с недвижимым имуществом',
+            "Профессиональная, научная и техническая деятельность",
+            'Деятельность в сфере административных и вспомогательных услуг',
+            'Образование',
+            'Здравоохранение и социальные услуги',
+            "Творчество, спорт, развлечения и отдых",
+            'Предоставление прочих видов услуг',
+            'Вооруженные силы',
+            'Правоохранительные органы',
+            'Государственное управление']
+    }
+
     getFileKeys() {
         return [
             'Номинальная начисленная и реальная заработная плата',
@@ -52,12 +74,12 @@ class ParserDataFormatter {
     getSpeciality(speciality) {
         if (speciality.includes('/')) {
             return speciality.split('/')[0].includes('\r\n')
-                ? speciality.split('/')[0].replaceAll('\r\n', ' ').toLowerCase().trim()
-                : speciality.split('/')[0].toLowerCase().trim()
+                ? speciality.split('/')[0].replaceAll('\r\n', ' ').trim()
+                : speciality.split('/')[0].trim()
         } else {
             return speciality.includes('\r\n')
-                ? speciality.replaceAll('\r\n', ' ').toLowerCase().trim()
-                : speciality.toLowerCase().trim()
+                ? speciality.replaceAll('\r\n', ' ').trim()
+                : speciality.trim()
         }
     }
 
@@ -73,13 +95,9 @@ class ParserDataFormatter {
                 ? this.getAverageSalary(element[valueKey])
                 : element[valueKey]
 
-            // elementData = {
-            //     speciality: this.getSpeciality(key),
-            //     amount: value,
-            //     currency: 'BYN'
-            // }
             elementData = {
-                [this.getSpeciality(key)]: value
+                name: this.getSpeciality(key),
+                amount: value,
             }
         }
         return Object.keys(elementData).length ? elementData : null
@@ -99,6 +117,7 @@ class ParserDataFormatter {
                 if (this.getDataFromElement(elem, 0)) fileJson.specialities.push(this.getDataFromElement(elem, 0))
                 if (this.getDataFromElement(elem, 1)) fileJson.specialities.push(this.getDataFromElement(elem, 1))
             })
+        fileJson.specialities = fileJson.specialities.filter(el => this.getSpecialities().includes(el.name))
         return fileJson
     }
 
@@ -115,7 +134,7 @@ class ParserDataFormatter {
                         year: year,
                         month: index + 1,
                         monthName: this.getMonthFullName(index + 1),
-                        amount: values[index + 1] ? parseInt(values[index + 1].replace(',', ''))/100 : null,
+                        amount: values[index + 1] ? parseInt(values[index + 1].replace(',', '')) / 100 : null,
                         currency: 'BYN'
                     })
                 )
@@ -219,12 +238,17 @@ class ParseBelStat {
     }
 
     async parseAverageSalaryLatestMonth() {
-        const latestMonth = await this.getLatestMonth()
-        if (!latestMonth) throw new Error('Нет ссылки')
-        const link = await this.getExcelLink(latestMonth)
-        const fileName = this.getFileName(link)
-        const data = await this.readExcelData(link);
-        if (data) return dataFormatter.getDataFromExcel(fileName, data)
+        try {
+            const latestMonth = await this.getLatestMonth()
+            if (!latestMonth) throw new Error('Нет ссылки')
+            const link = await this.getExcelLink(latestMonth)
+            const fileName = this.getFileName(link)
+            const data = await this.readExcelData(link);
+            if (data) return dataFormatter.getDataFromExcel(fileName, data)
+        } catch (e) {
+            return e.message
+        }
+
     }
 
     async parsePension() {
@@ -255,7 +279,7 @@ class ParseBelStat {
         const pensionInfo = await this.getAveragePensionAllAvailableMonths()
         if (pensionInfo && pensionInfo.data.length) return {
             name: pensionInfo.name,
-            ... pensionInfo.data[pensionInfo.data.length - 1]
+            ...pensionInfo.data[pensionInfo.data.length - 1]
         }
     }
 }
