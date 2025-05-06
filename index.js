@@ -7,3 +7,4 @@ async function getLatestData() {
     }
 }
 
+getLatestData().then(data=> console.log(data))
