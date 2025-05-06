@@ -44,14 +44,13 @@ class DataFormatter {
     getSpeciality(speciality) {
         if (speciality.includes('/')) {
             return speciality.split('/')[0].includes('\r\n')
-                ? speciality.split('/')[0].replaceAll('\r\n', ' ')
-                : speciality.split('/')[0]
-        }else {
+                ? speciality.split('/')[0].replaceAll('\r\n', ' ').toLowerCase().trim()
+                : speciality.split('/')[0].toLowerCase().trim()
+        } else {
             return speciality.includes('\r\n')
-                ? speciality.replaceAll('\r\n', ' ')
-                : speciality
+                ? speciality.replaceAll('\r\n', ' ').toLowerCase().trim()
+                : speciality.toLowerCase().trim()
         }
-
     }
 
     getDataFromElement(element, keyIndex) {
@@ -66,28 +65,32 @@ class DataFormatter {
                 ? this.getAverageSalary(element[valueKey])
                 : element[valueKey]
 
+            // elementData = {
+            //     speciality: this.getSpeciality(key),
+            //     amount: value,
+            //     currency: 'BYN'
+            // }
             elementData = {
-                speciality: this.getSpeciality(key),
-                amount: value,
-                currency: 'BYN'
+                [this.getSpeciality(key)]: value
             }
         }
         return Object.keys(elementData).length ? elementData : null
     }
 
     getDataFromExcel(fileName, excel) {
-        if(!fileName && !excel) return null
+        if (!fileName && !excel) return null
         let fileJson = {
             name: fileName.name,
             year: fileName.year,
             month: fileName.month,
             monthName: fileName.monthName,
-            speciality: []
+            specialities: []
         };
-        excel.slice(4,).map((elem) => {
-            if (this.getDataFromElement(elem, 0)) fileJson.speciality.push(this.getDataFromElement(elem, 0))
-            if (this.getDataFromElement(elem, 1)) fileJson.speciality.push(this.getDataFromElement(elem, 1))
-        })
+        if (excel && excel.length > 3)
+            excel.slice(4,).map((elem) => {
+                if (this.getDataFromElement(elem, 0)) fileJson.speciality.push(this.getDataFromElement(elem, 0))
+                if (this.getDataFromElement(elem, 1)) fileJson.speciality.push(this.getDataFromElement(elem, 1))
+            })
         return fileJson
     }
 
@@ -102,8 +105,9 @@ class DataFormatter {
                 months.map((month, index) =>
                     averagePension.data.push({
                         year: year,
-                        month: index,
-                        amount: values[index + 1] ? parseInt(values[index + 1].replace(',', '')) : null,
+                        month: index + 1,
+                        monthName: this.getMonthFullName(index + 1),
+                        amount: values[index + 1] ? parseInt(values[index + 1].replace(',', ''))/100 : null,
                         currency: 'BYN'
                     })
                 )

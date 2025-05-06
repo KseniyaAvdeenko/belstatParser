@@ -122,20 +122,14 @@ class ParseBelStat {
 
     async getAveragePensionAllAvailableMonths() {
         const pensionInfo = await this.parsePension()
-        if (pensionInfo && pensionInfo.length) {
-            return dataFormatter.getAveragePensionByMonths(pensionInfo.slice(3, 9))
-        }
+        if (pensionInfo && pensionInfo.length) return dataFormatter.getAveragePensionByMonths(pensionInfo.slice(3, 9))
     }
 
     async getAveragePensionLatestMonth() {
-        const pensionInfo = await this.parsePension()
-        const currentDate = new Date(Date.now())
-        if (pensionInfo && pensionInfo.length) {
-            const data = dataFormatter.getAveragePensionByMonths(pensionInfo.slice(3, 9))
-            return {
-                name: data.name,
-                data: data.data.filter(el => el.year === currentDate.getFullYear() && el.month === currentDate.getMonth())
-            }
+        const pensionInfo = await this.getAveragePensionAllAvailableMonths()
+        if (pensionInfo && pensionInfo.data.length) return {
+            name: pensionInfo.name,
+            ... pensionInfo.data[pensionInfo.data.length - 1]
         }
     }
 }
