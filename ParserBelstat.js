@@ -1,11 +1,7 @@
 const puppeteer = require("puppeteer");
-const path = require("path");
-const fs = require("fs");
-const https = require("https");
 const axios = require("axios");
-const storage = require('./storage')
-const {S3Client, PutObjectCommand} = require("@aws-sdk/client-s3");
-require('dotenv').config()
+const xlsx = require("xlsx");
+const dataFormatter = require('./DataFormatter')
 
 const mainUrl = 'https://www.belstat.gov.by/ofitsialnaya-statistika/realny-sector-ekonomiki/stoimost-rabochey-sily/operativnye-dannye/o-nachislennoy-sredney-zarabotnoy-plate-rabotnikov/'
 const pensionInfoUrl = 'https://www.mintrud.gov.by/ru/informacia-o-srednih-razmerah-pensij-ru'
@@ -33,48 +29,32 @@ class ParseBelStat {
         }
     }
 
-    async downloadToProjectFolder(fileName, link, agent) {
-        const downloadPath = path.resolve(__dirname, 'downloads');
-        if (!fs.existsSync(downloadPath)) fs.mkdirSync(downloadPath, {recursive: true});
-        const filePath = downloadPath + '\\' + fileName
-        axios({
-            method: 'GET',
-            url: link,
-            responseType: 'stream',
-            httpsAgent: agent,
-        })
-            .then(response => {
-                const fileStream = fs.createWriteStream(filePath);
-                response.data.pipe(fileStream);
-
-                fileStream.on('finish', () => {
-                    console.log('Файл загружен:', filePath);
-                });
-            })
-            .catch(error => {
-                console.error('Ошибка загрузки файла:', error.message);
-            });
-    }
-
-    async downloadExcelLink(fileName, link) {
-        if (!link) return null
-
-        const agent = new https.Agent({
-            rejectUnauthorized: false
-        });
-
-        //------для загрузки в папку проекта
-        await this.downloadToProjectFolder(fileName, link, agent)
-
-        return fileName
+    async readExcelData(fileUrl) {
+        try {
+            const response = await axios.get(fileUrl, {responseType: 'arraybuffer'});
+            const workbook = xlsx.read(response.data, {type: 'buffer'});
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            const data = xlsx.utils.sheet_to_json(worksheet)
+            return Array.from(data)
+        } catch (e) {
+            console.warn('cannot read data')
+            return null
+        }
     }
 
     getFileName(link) {
         if (!link) return null
-        return link.split('/')[link.split('/').length - 1]
+        const date = link.split('/')[link.split('/').length - 1].split('.')[0].split('-')[1]
+        return {
+            name: 'Номинальная начисленная и реальная заработная плата работников Республики Беларусь по видам экономической деятельности',
+            year: Number(20 + date.slice(0, 2)),
+            month: Number(date.slice(2,)),
+            monthName: dataFormatter.getMonthFullName(Number(date.slice(2,)))
+        }
     }
 
-    async getDownloadExcelLink(link) {
+    async getExcelLink(link) {
         const browser = await puppeteer.launch();
         try {
             const browser = await puppeteer.launch();
@@ -95,14 +75,16 @@ class ParseBelStat {
         }
     }
 
-    async downloadAll() {
+    async parseAverageSalaryAllAvailableMonths() {
         const monthsLinks = await this.getMonthsLinks();
+        let result = [];
         for (let i = 0; i < monthsLinks.length; i++) {
-            const link = await this.getDownloadExcelLink(monthsLinks[i])
+            const link = await this.getExcelLink(monthsLinks[i])
             const fileName = this.getFileName(link)
-            if (!fs.existsSync(path.join(__dirname, 'downloads', fileName)))
-                await this.downloadExcelLink(fileName, link);
+            const data = await this.readExcelData(link);
+            if (data) result.push(dataFormatter.getDataFromExcel(fileName, data))
         }
+        return result;
     }
 
     async getLatestMonth() {
@@ -110,13 +92,13 @@ class ParseBelStat {
         return monthsLinks.length ? monthsLinks[0] : null
     }
 
-    async downloadLatest() {
+    async parseAverageSalaryLatestMonth() {
         const latestMonth = await this.getLatestMonth()
         if (!latestMonth) throw new Error('Нет ссылки')
-        const link = await this.getDownloadExcelLink(latestMonth)
+        const link = await this.getExcelLink(latestMonth)
         const fileName = this.getFileName(link)
-        if (!fs.existsSync(path.join(__dirname, 'downloads', fileName)))
-            await this.downloadExcelLink(fileName, link);
+        const data = await this.readExcelData(link);
+        if (data) return dataFormatter.getDataFromExcel(fileName, data)
     }
 
     async parsePension() {
@@ -135,6 +117,19 @@ class ParseBelStat {
         } catch (e) {
             console.log('Не удалось спарсить инфо о средней начисленной пенсии по возрасту', e.message)
             return null
+        }
+    }
+
+    async getAveragePensionAllAvailableMonths() {
+        const pensionInfo = await this.parsePension()
+        if (pensionInfo && pensionInfo.length) return dataFormatter.getAveragePensionByMonths(pensionInfo.slice(3, 9))
+    }
+
+    async getAveragePensionLatestMonth() {
+        const pensionInfo = await this.getAveragePensionAllAvailableMonths()
+        if (pensionInfo && pensionInfo.data.length) return {
+            name: pensionInfo.name,
+            ... pensionInfo.data[pensionInfo.data.length - 1]
         }
     }
 }
