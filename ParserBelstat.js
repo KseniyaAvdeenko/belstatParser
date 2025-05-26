@@ -8,7 +8,7 @@ const pensionInfoUrl = 'https://www.mintrud.gov.by/ru/informacia-o-srednih-razme
 
 class ParserDataFormatter {
     getAverageSalary(string) {
-        return parseInt(string.replace(',', '').split('').map((el, i) => string.charCodeAt(i) !== 160 ? el : '').join(''))
+        return parseInt(string.replace(',', '').split('').map((el, i) => string.charCodeAt(i) !== 160 ? el : '').join(''))/10
     }
 
     getMonthFullName(monthNum) {
@@ -121,6 +121,41 @@ class ParserDataFormatter {
         return fileJson
     }
 
+    getDataFromElementForSalaryByRegion(element, keyIndex){
+        let elementData = {}
+        const keys = this.getFileKeys();
+        const key = element[keys[keyIndex]];
+        if (element.hasOwnProperty(keys[keyIndex])) {
+            const valueKey = element.hasOwnProperty(keys[2]) && keys[2]
+            // const value = typeof element[valueKey] === 'string'
+            //     ? this.getAverageSalary(element[valueKey])
+            //     : element[valueKey]
+            const value = typeof element[valueKey] === 'string' && this.getAverageSalary(element[valueKey])
+            console.log(typeof element[key])
+            elementData = {
+                name: key,
+                amount: value,
+            }
+        }
+        return Object.keys(elementData).length ? elementData : null
+    }
+
+    getDataSalaryByRegionFromExcel(fileName, excel) {
+        if (!fileName && !excel) return null
+        let fileJson = {
+            name: fileName.name,
+            year: fileName.year,
+            month: fileName.month,
+            monthName: fileName.monthName,
+            regions: []
+        };
+        if (excel && excel.length > 5)
+            excel.slice(5,).map((elem) => {
+                if(this.getDataFromElementForSalaryByRegion(elem, 0)) fileJson.regions.push(this.getDataFromElementForSalaryByRegion(elem, 0))
+            })
+        return fileJson
+    }
+
     getAveragePensionByMonths(dataArray) {
         let averagePension = {name: 'Средний размер пенсии по возрасту (для неработающего пенсионера)', data: []};
         const currentDate = new Date(Date.now())
@@ -199,6 +234,17 @@ class ParseBelStat {
         }
     }
 
+    getFileNameSalaryByRegion(link) {
+        if (!link) return null
+        const date = link.split('/')[link.split('/').length - 1].split('.')[0].split('-')[1]
+        return {
+            name: 'Номинальная начисленная и реальная заработная плата работников Республики Беларусь по областям и г.Минску',
+            year: Number(20 + date.slice(0, 2)),
+            month: Number(date.slice(2,)),
+            monthName: dataFormatter.getMonthFullName(Number(date.slice(2,)))
+        }
+    }
+
     async getExcelLink(link) {
         const browser = await puppeteer.launch();
         try {
@@ -210,6 +256,28 @@ class ParseBelStat {
                 const links = Array.from(document.querySelectorAll('div.l-main.default-content > a'));
                 const targetLink = links.find(el => el.textContent.trim() ===
                     'Номинальная начисленная и реальная заработная плата работников Республики Беларусь по видам экономической деятельности (.xlsx)');
+                return targetLink ? targetLink.href : null
+            })
+        } catch (e) {
+            console.log('Не удалось найти ссылку на скачивания файла', e.message)
+            return e.message
+        } finally {
+            await browser.close()
+        }
+    }
+
+    async getExcelLinkSalaryByRegion(link) {
+        const browser = await puppeteer.launch();
+        try {
+            const browser = await puppeteer.launch();
+            const page = await browser.newPage()
+            await page.goto(link, {waitUntil: 'domcontentloaded'})
+            await page.setDefaultNavigationTimeout(50000)
+            await page.waitForSelector('div.l-main.default-content')
+            return await page.evaluate(() => {
+                const links = Array.from(document.querySelectorAll('div.l-main.default-content > a'));
+                const targetLink = links.find(el => el.textContent.trim() ===
+                    'Номинальная начисленная и реальная заработная плата работников Республики Беларусь по областям и г.Минску (.xlsx)');
                 return targetLink ? targetLink.href : null
             })
         } catch (e) {
@@ -240,7 +308,6 @@ class ParseBelStat {
     async parseAverageSalaryLatestMonth() {
         try {
             const latestMonth = await this.getLatestMonth()
-            if (!latestMonth) throw new Error('Нет ссылки')
             const link = await this.getExcelLink(latestMonth)
             const fileName = this.getFileName(link)
             const data = await this.readExcelData(link);
@@ -248,7 +315,17 @@ class ParseBelStat {
         } catch (e) {
             return e.message
         }
-
+    }
+    async parseAverageSalaryByRegionLatestMonth() {
+        try {
+            const latestMonth = await this.getLatestMonth()
+            const link = await this.getExcelLinkSalaryByRegion(latestMonth)
+            const fileName = this.getFileNameSalaryByRegion(link)
+            const data = await this.readExcelData(link);
+            if (data) return dataFormatter.getDataSalaryByRegionFromExcel(fileName, data)
+        } catch (e) {
+            return e.message
+        }
     }
 
     async parsePension() {
