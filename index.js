@@ -8,4 +8,4 @@ async function getLatestData() {
     }
 }
 
-getLatestData().then(data=> console.log(data.averageSalary.specialities, data.averageSalaryByRegion.regions))
+getLatestData().then(data=> console.log(data))
